@@ -1,0 +1,244 @@
+@model LanguagesViewModel
+@{
+    ViewData["Title"] = "Languages";
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var targets = Model.Languages.Where(l => !l.IsSource).ToList();
+    var total = targets.Sum(l => l.Stat?.Total ?? 0);
+    var overall = total == 0 ? 100 : targets.Sum(l => l.Stat?.Translated ?? 0) * 100.0 / total;
+    var unstaffed = targets.Count(l => l.Translators.Count == 0);
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Languages</h1>
+        <p>
+            @Model.Languages.Count languages · @targets.Count to translate · @overall.ToString("0.0")% translated overall
+            @if (unstaffed > 0) { <text>· </text><span style="color:var(--lz-warn)">@unstaffed without a translator</span> }
+        </p>
+    </div>
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#langModal"><i class="bi bi-plus-lg"></i> Add language</button>
+</div>
+
+<div class="lz-card">
+    <div class="lz-filters">
+        <div class="lz-input-icon" style="max-width:340px">
+            <i class="bi bi-search"></i>
+            <input class="form-control" type="search" placeholder="Filter languages or translators…" data-lang-filter aria-label="Filter languages"/>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="lz-table">
+            <thead>
+            <tr>
+                <th>Language</th>
+                <th>Translators</th>
+                <th class="num">Applications</th>
+                <th>Completion</th>
+                <th>Last updated</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var o in Model.Languages)
+            {
+                var l = o.Language;
+                var langJson = System.Text.Json.JsonSerializer.Serialize(new { l.Code, l.Name, l.NativeName, l.Flag, Translators = o.Translators.Select(u => u.Id) });
+                <tr class="@(o.IsSource ? "" : "lz-drawer-row")" data-lang-row data-name="@l.Name @l.NativeName @l.Code @string.Join(" ", o.Translators.Select(u => u.Name))"
+                    data-drawer-url="@(o.IsSource ? null : Url.Action("Panel", new { id = l.Code }))" tabindex="@(o.IsSource ? null : "0")">
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="lz-flag" style="font-size:1.5rem">@l.Flag</span>
+                            <div class="min-w-0">
+                                <div class="fw-semibold">
+                                    @l.Name
+                                    @if (o.IsSource) { <span class="lz-pill blue ms-1">Source</span> }
+                                </div>
+                                <div class="small text-muted">@l.NativeName · <span class="font-mono">@l.Code</span></div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        @if (o.IsSource)
+                        {
+                            <span class="small text-muted">Written by developers</span>
+                        }
+                        else if (o.Translators.Count == 0)
+                        {
+                            <span class="lz-pill warn"><i class="bi bi-exclamation-triangle"></i> No translator</span>
+                        }
+                        else
+                        {
+                            <div class="lz-people">
+                                @foreach (var u in o.Translators)
+                                {
+                                    <div class="lz-person" title="@u.Email">
+                                        <span class="lz-avatar xs role-comtor">@Ui.Initials(u.Name)</span>
+                                        <span class="text-truncate">@u.Name</span>
+                                        @if (u.Status == UserStatus.Invited) { <span class="lz-pill warn lz-pill-xs">Invited</span> }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </td>
+                    <td class="num">
+                        <div class="fw-semibold">@o.Apps.Count</div>
+                        <div class="d-flex justify-content-end" title="@string.Join(", ", o.Apps.Select(a => a.Name))">
+                            @foreach (var a in o.Apps.Take(5))
+                            {
+                                <span class="lz-dot ms-1" style="background:@a.Color"></span>
+                            }
+                            @if (o.Apps.Count > 5) { <span class="small text-muted ms-1" style="line-height:8px">+@(o.Apps.Count - 5)</span> }
+                        </div>
+                    </td>
+                    <td>
+                        @if (o.Stat is { } s)
+                        {
+                            <div class="lz-cov">
+                                <div class="lz-cov-track"><div class="lz-cov-fill" style="width:@s.Coverage.ToString("0.#", inv)%"></div></div>
+                                <span class="lz-cov-val">@s.Coverage.ToString("0")%</span>
+                            </div>
+                            <div class="small text-muted">
+                                @s.Translated.ToString("N0") / @s.Total.ToString("N0")
+                                @if (s.Missing > 0) { <text>· </text><span style="color:var(--lz-bad)">@s.Missing missing</span> }
+                            </div>
+                        }
+                        else if (o.IsSource)
+                        {
+                            <span class="small text-muted">—</span>
+                        }
+                        else
+                        {
+                            <span class="small text-muted">Not used by any application</span>
+                        }
+                    </td>
+                    <td class="text-nowrap">
+                        @if (o.Stat?.LastUpdated is DateTime lu)
+                        {
+                            <span title="@Ui.Exact(lu)">@Ui.Relative(lu)</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">—</span>
+                        }
+                    </td>
+                    <td class="text-end text-nowrap">
+                        @if (!o.IsSource)
+                        {
+                            <button class="btn btn-sm btn-light" type="button" data-open-drawer>Details <i class="bi bi-chevron-right small"></i></button>
+                        }
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" type="button" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#langModal" data-lang="@langJson"><i class="bi bi-pencil me-2"></i>Edit</button></li>
+                                <li><a class="dropdown-item" asp-controller="Activity" asp-action="Index" asp-route-lang="@l.Code"><i class="bi bi-clock-history me-2"></i>Activity</a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                @if (o.IsSource)
+                                {
+                                    <li><span class="dropdown-item disabled"><i class="bi bi-trash me-2"></i>Source language can't be deleted</span></li>
+                                }
+                                else
+                                {
+                                    <li><button class="dropdown-item text-danger" type="button" data-bs-toggle="modal" data-bs-target="#langDeleteModal"
+                                                data-lang-name="@l.Name" data-lang-apps="@o.Apps.Count" data-lang-strings="@(o.Stat?.Translated ?? 0)"><i class="bi bi-trash me-2"></i>Delete</button></li>
+                                }
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="lz-empty d-none" data-lang-empty>
+        <i class="bi bi-search"></i>
+        <h3>No languages match</h3>
+    </div>
+</div>
+
+@* Right-hand drawer; its content is loaded from Languages/Panel/{code} *@
+<div class="offcanvas offcanvas-end lz-drawer" tabindex="-1" id="langDrawer" aria-labelledby="langDrawerTitle">
+    <div class="lz-drawer-loading">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+    </div>
+</div>
+
+<div class="modal fade" id="langModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" data-demo-submit="Language saved (demo only)">
+            <div class="modal-header">
+                <h5 class="modal-title" data-lang-title>Add language</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label" for="lCode">Code</label>
+                        <input class="form-control font-mono" id="lCode" placeholder="vi" pattern="[a-z]{2,3}(-[A-Za-z0-9]{2,4})?" required/>
+                        <div class="form-text">ISO code, e.g. <span class="font-mono">pt-BR</span></div>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label" for="lFlag">Flag</label>
+                        <input class="form-control text-center" id="lFlag" placeholder="🇻🇳" maxlength="8"/>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label" for="lName">Name</label>
+                        <input class="form-control" id="lName" placeholder="Vietnamese" required/>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label" for="lNative">Native name</label>
+                        <input class="form-control" id="lNative" placeholder="Tiếng Việt"/>
+                    </div>
+                    <div class="col-12" data-translators-field>
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0">Translators</label>
+                            <span class="small text-muted"><span data-count-for="lang-translators">0</span> / @MockData.MaxTranslators selected</span>
+                        </div>
+                        @* <div class="lz-check-grid" data-max-group="lang-translators" data-max="@MockData.MaxTranslators"> *@
+                        @*     @foreach (var u in Model.Comtors) *@
+                        @*     { *@
+                        @*         <label class="lz-check-tile"> *@
+                        @*             <input class="form-check-input" type="checkbox" name="translators" value="@u.Id" data-group="lang-translators"/> *@
+                        @*             <span class="lz-avatar xs role-comtor">@Ui.Initials(u.Name)</span> *@
+                        @*             <span class="min-w-0"> *@
+                        @*                 <span class="d-block text-truncate">@u.Name</span> *@
+                        @*                 <span class="d-block small text-muted">@(u.Languages.Count == 0 ? "No language yet" : string.Join(", ", u.Languages))</span> *@
+                        @*             </span> *@
+                        @*         </label> *@
+                        @*     } *@
+                        @* </div> *@
+                        @* <div class="form-text">Each language needs 1 to @MockData.MaxTranslators comtors. They translate it in the applications they are assigned to.</div> *@
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" data-lang-submit data-requires-group="lang-translators">Add language</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="modal fade" id="langDeleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" data-demo-submit="Language deleted (demo only)">
+            <div class="modal-header">
+                <h5 class="modal-title">Delete <span data-del-name></span>?</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="lz-callout warn">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <div>
+                        The language will be removed from <b data-del-apps></b> and its <b data-del-strings></b> translations will be deleted.
+                        Translators lose access to it. This can't be undone.
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger"><i class="bi bi-trash"></i> Delete language</button>
+            </div>
+        </form>
+    </div>
+</div>

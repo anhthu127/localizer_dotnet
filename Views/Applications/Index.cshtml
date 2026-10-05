@@ -1,0 +1,182 @@
+@model List<AppStats>
+@{
+    ViewData["Title"] = "Applications";
+    var lockedCount = Model.Count(a => a.App.IsLocked);
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Applications</h1>
+        <p>@Model.Count applications · @Model.Sum(a => a.TotalKeys).ToString("N0") keys in total</p>
+    </div>
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#newAppModal"><i class="bi bi-plus-lg"></i> New application</button>
+</div>
+
+<div class="lz-card">
+    <div class="lz-filters">
+        <div class="lz-input-icon" style="max-width:340px">
+            <i class="bi bi-search"></i>
+            <input class="form-control" type="search" placeholder="Filter applications…" data-app-filter-text aria-label="Filter applications"/>
+        </div>
+        <div class="lz-seg" role="group" aria-label="Lock status">
+            <input type="radio" name="lockFilter" id="lf-all" value="all" checked data-app-filter-lock><label for="lf-all">All<span class="count">@Model.Count</span></label>
+            <input type="radio" name="lockFilter" id="lf-open" value="open" data-app-filter-lock><label for="lf-open">Open<span class="count" data-lock-count="open">@(Model.Count - lockedCount)</span></label>
+            <input type="radio" name="lockFilter" id="lf-locked" value="locked" data-app-filter-lock><label for="lf-locked"><i class="bi bi-lock-fill small"></i> Locked<span class="count" data-lock-count="locked">@lockedCount</span></label>
+        </div>
+    </div>
+
+    <div class="table-responsive">
+        <table class="lz-table lz-app-table">
+            <thead>
+            <tr>
+                <th>Application</th>
+                <th>Languages</th>
+                <th class="num">Total keys</th>
+                <th class="num">Untranslated keys</th>
+                <th>Last translated</th>
+                <th>Translation</th>
+                <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            @foreach (var a in Model)
+            {
+                var app = a.App;
+                var targets = app.Languages.Where(l => l != MockData.SourceLanguage).ToList();
+                var lockClass = app.IsLocked ? "is-locked" : app.IsLockScheduled ? "is-lock-scheduled" : "";
+                <tr class="lz-app-row @lockClass" data-app-row="@app.Id" data-lock-scope="@app.Id" data-name="@app.Name @app.Code"
+                    data-drawer-url="@Url.Action("Panel", new { id = app.Id })" tabindex="0">
+                    <td>
+                        <div class="d-flex align-items-center gap-2">
+                            <span class="lz-app-icon sm" style="background:@app.Color"><i class="bi bi-@app.Icon"></i></span>
+                            <div class="min-w-0">
+                                <div class="fw-semibold">
+                                    @app.Name
+                                    <i class="bi bi-lock-fill lz-lock-icon" data-lock-icon="@app.Id" title="Locked"></i>
+                                    <i class="bi bi-calendar-event lz-lock-icon is-scheduled" title="Lock scheduled"></i>
+                                </div>
+                                <div class="small text-muted"><span class="font-mono">@app.Code</span> · @app.Platform</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="d-flex align-items-center gap-1 flex-wrap" title="@string.Join(", ", targets.Select(c => MockData.Lang(c).Name))">
+                            @foreach (var code in targets.Take(5))
+                            {
+                                <span class="lz-flag">@MockData.Lang(code).Flag</span>
+                            }
+                            @if (targets.Count > 5) { <span class="small text-muted">+@(targets.Count - 5)</span> }
+                        </div>
+                        <div class="small text-muted">@targets.Count @(targets.Count == 1 ? "language" : "languages")</div>
+                    </td>
+                    <td class="num">
+                        <div class="fw-semibold">@a.TotalKeys</div>
+                        @if (a.NewKeys > 0) { <div class="small" style="color:var(--lz-blue-600)">+@a.NewKeys this week</div> }
+                    </td>
+                    <td class="num">
+                        @if (a.UntranslatedKeys > 0)
+                        {
+                            <div class="fw-semibold" style="color:var(--lz-bad)">@a.UntranslatedKeys</div>
+                            <div class="small text-muted">@a.Untranslated strings · @a.Coverage.ToString("0")% done</div>
+                        }
+                        else
+                        {
+                            <span class="lz-pill good"><i class="bi bi-check2"></i> All translated</span>
+                        }
+                    </td>
+                    <td>
+                        <div title="@Ui.Exact(app.LastTranslatedAt)">
+                            @Ui.Relative(app.LastTranslatedAt)
+                            @if (Ui.IsStale(app.LastTranslatedAt))
+                            {
+                                <span class="lz-pill warn ms-1"><i class="bi bi-clock-history"></i> Stale</span>
+                            }
+                        </div>
+                        <div class="small text-muted">by @app.LastTranslatedBy</div>
+                    </td>
+                    <td>
+                        <div class="form-check form-switch lz-lock-switch mb-0"
+                             title="@(app.IsLocked || app.IsLockScheduled ? Ui.LockSummary(app) : "Comtors can translate")" data-lock-tip="@app.Id">
+                            <input class="form-check-input" type="checkbox" role="switch" id="lock-@app.Id"
+                                   data-lock-toggle="@app.Id" data-app-name="@app.Name" checked="@app.IsLocked"/>
+                            <label class="form-check-label" for="lock-@app.Id" data-lock-label="@app.Id">@(app.IsLocked ? "Locked" : app.IsLockScheduled ? "Scheduled" : "Open")</label>
+                        </div>
+                    </td>
+                    <td class="text-end text-nowrap">
+                        <button class="btn btn-sm btn-light" type="button" data-open-drawer>Details <i class="bi bi-chevron-right small"></i></button>
+                        <div class="dropdown d-inline-block">
+                            <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" type="button" aria-label="More actions"><i class="bi bi-three-dots"></i></button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><a class="dropdown-item" asp-action="Details" asp-route-id="@app.Id"><i class="bi bi-box-arrow-up-right me-2"></i>Open translations</a></li>
+                                <li><a class="dropdown-item" href="@Url.Action("Details", new { id = app.Id })#download"><i class="bi bi-download me-2"></i>Download</a></li>
+                                <li><a class="dropdown-item" asp-controller="Keys" asp-action="Create" asp-route-appId="@app.Id"><i class="bi bi-plus-lg me-2"></i>Add key</a></li>
+                                <li><button class="dropdown-item" type="button" data-open-drawer="languages"><i class="bi bi-translate me-2"></i>Language settings</button></li>
+                            </ul>
+                        </div>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="lz-empty d-none" data-app-empty>
+        <i class="bi bi-search"></i>
+        <h3>No applications match</h3>
+    </div>
+</div>
+
+@* Right-hand drawer; its content is loaded from Applications/Panel/{id} *@
+<div class="offcanvas offcanvas-end lz-drawer" tabindex="-1" id="appDrawer" aria-labelledby="appDrawerTitle">
+    <div class="lz-drawer-loading">
+        <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading…</span></div>
+    </div>
+</div>
+
+<div class="modal fade" id="newAppModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" data-demo-submit="Application created (demo only)">
+            <div class="modal-header">
+                <h5 class="modal-title">New application</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Name</label>
+                        <input class="form-control" placeholder="e.g. School site" required/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Code</label>
+                        <input class="form-control font-mono" placeholder="school-site" required/>
+                        <div class="form-text">Used in API & download file names.</div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Platform</label>
+                        <div class="lz-seg">
+                            <input type="checkbox" id="pf-ios" checked><label for="pf-ios">iOS</label>
+                            <input type="checkbox" id="pf-android" checked><label for="pf-android">Android</label>
+                            <input type="checkbox" id="pf-web"><label for="pf-web">Web</label>
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Languages to translate</label>
+                        <div class="lz-check-grid">
+                            @foreach (var l in MockData.Languages.Where(l => l.Code != MockData.SourceLanguage))
+                            {
+                                <label class="lz-check-tile">
+                                    <input class="form-check-input" type="checkbox" checked="@(l.Code == "vi")"/>
+                                    <span class="lz-flag">@l.Flag</span> @l.Name
+                                </label>
+                            }
+                        </div>
+                        <div class="form-text">English is the source language and is always included. You can change this later.</div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary">Create application</button>
+            </div>
+        </form>
+    </div>
+</div>

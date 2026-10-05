@@ -1,0 +1,105 @@
+@model SearchViewModel
+@{
+    ViewData["Title"] = string.IsNullOrEmpty(Model.Query) ? "Search" : $"Search: {Model.Query}";
+    var suggestions = new[] { "sign_in", "password", "checkout", "Lưu", "保存", "Welcome" };
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Search</h1>
+        <p>Find a label by its key or by translated text, in any language.</p>
+    </div>
+</div>
+
+<form method="get" asp-action="Index" class="mb-3">
+    <div class="lz-search-hero mb-3">
+        <i class="bi bi-search"></i>
+        <input class="form-control" type="search" name="q" value="@Model.Query" placeholder="e.g. checkout.button or “Mật khẩu”" autofocus/>
+    </div>
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+        <div class="lz-seg">
+            <input type="radio" name="scope" id="sc-all" value="all" checked="@(Model.Scope == "all")" data-autosubmit><label for="sc-all">Key &amp; text</label>
+            <input type="radio" name="scope" id="sc-key" value="key" checked="@(Model.Scope == "key")" data-autosubmit><label for="sc-key">Key only</label>
+            <input type="radio" name="scope" id="sc-text" value="text" checked="@(Model.Scope == "text")" data-autosubmit><label for="sc-text">Text only</label>
+        </div>
+        <select class="form-select w-auto" name="appId" data-autosubmit aria-label="Application">
+            <option value="">All applications</option>
+            @foreach (var a in MockData.Apps)
+            {
+                <option value="@a.Id" selected="@(a.Id == Model.AppId)">@a.Name</option>
+            }
+        </select>
+        <select class="form-select w-auto" name="lang" data-autosubmit aria-label="Language">
+            <option value="">All languages</option>
+            @foreach (var l in MockData.Languages)
+            {
+                <option value="@l.Code" selected="@(l.Code == Model.Lang)">@l.Flag @l.Name</option>
+            }
+        </select>
+        <button class="btn btn-primary ms-auto" type="submit">Search</button>
+    </div>
+</form>
+
+<div class="lz-card">
+    @if (string.IsNullOrEmpty(Model.Query))
+    {
+        <div class="lz-empty">
+            <i class="bi bi-search"></i>
+            <h3>Search keys and translations</h3>
+            <p class="mb-3">Try one of these:</p>
+            <div class="d-flex flex-wrap gap-2 justify-content-center">
+                @foreach (var sug in suggestions)
+                {
+                    <a class="lz-pill blue" asp-action="Index" asp-route-q="@sug">@sug</a>
+                }
+            </div>
+        </div>
+    }
+    else if (Model.Results.Count == 0)
+    {
+        <div class="lz-empty">
+            <i class="bi bi-emoji-neutral"></i>
+            <h3>No results for “@Model.Query”</h3>
+            <p>Check the spelling, or search in all applications and languages.</p>
+        </div>
+    }
+    else
+    {
+        <div class="lz-card-header">
+            <div>
+                <h2>@Model.TotalMatches results</h2>
+                @if (Model.TotalMatches > Model.Results.Count)
+                {
+                    <div class="sub">Showing the first @Model.Results.Count — narrow the search to see more.</div>
+                }
+            </div>
+        </div>
+        @foreach (var r in Model.Results)
+        {
+            <div class="lz-result">
+                <span class="lz-app-icon sm" style="background:@r.App.Color" title="@r.App.Name"><i class="bi bi-@r.App.Icon"></i></span>
+                <div class="flex-grow-1 min-w-0">
+                    <div class="d-flex align-items-center gap-2 flex-wrap">
+                        <a class="lz-key" asp-controller="Keys" asp-action="Edit" asp-route-id="@r.Key.Id">@Ui.Highlight(r.Key.Key, r.KeyMatched ? Model.Query : null)</a>
+                        <span class="small text-muted">in</span>
+                        <a class="small fw-semibold text-reset" asp-controller="Applications" asp-action="Details" asp-route-id="@r.App.Id">@r.App.Name</a>
+                        @if (r.Key.IsNew) { <span class="lz-pill new">NEW</span> }
+                    </div>
+                    @foreach (var m in r.Matches.Take(4))
+                    {
+                        var l = MockData.Lang(m.Lang);
+                        <div class="lz-result-match">
+                            <span class="lang" title="@l.Name">@l.Flag @m.Lang</span>
+                            <span>@Ui.Highlight(m.Text, Model.Query)</span>
+                        </div>
+                    }
+                    @if (r.Matches.Count > 4)
+                    {
+                        <div class="small text-muted mt-1">+@(r.Matches.Count - 4) more languages</div>
+                    }
+                </div>
+                <a class="btn btn-sm btn-light align-self-start" asp-controller="Keys" asp-action="Edit" asp-route-id="@r.Key.Id"><i class="bi bi-pencil"></i> Edit</a>
+            </div>
+        }
+    }
+</div>

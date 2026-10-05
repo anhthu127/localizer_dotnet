@@ -1,0 +1,106 @@
+@{
+    ViewData["Title"] = "Upload JSON";
+    var appId = ViewData["AppId"] as int?;
+    var lang = ViewData["Lang"] as string;
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Upload JSON</h1>
+        <p>Import keys and translations for one language from a JSON file.</p>
+    </div>
+</div>
+
+<form data-demo-submit="Import queued (demo only)" id="uploadForm">
+    <div class="row g-3">
+        <div class="col-xl-8">
+            <div class="lz-card mb-3">
+                <div class="lz-card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <div class="lz-step"><span class="lz-step-num">1</span> Application</div>
+                            <select class="form-select" id="upApp" required>
+                                <option value="">Select an application…</option>
+                                @foreach (var a in MockData.Apps)
+                                {
+                                    <option value="@a.Id" selected="@(a.Id == appId)" data-langs="@string.Join(",", a.Languages)">@a.Name</option>
+                                }
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="lz-step"><span class="lz-step-num">2</span> Language of the file</div>
+                            <select class="form-select" id="upLang" required>
+                                <option value="">Select a language…</option>
+                                @foreach (var l in MockData.Languages)
+                                {
+                                    <option value="@l.Code" selected="@(l.Code == lang)">@l.Flag @l.Name (@l.Code)</option>
+                                }
+                            </select>
+                            <div class="form-text">Detected automatically from file names like <code>vi.json</code>.</div>
+                        </div>
+                    </div>
+
+                    <div class="lz-step mt-4"><span class="lz-step-num">3</span> JSON file</div>
+                    <div class="lz-dropzone" id="dropzone">
+                        <input type="file" accept=".json,application/json" id="upFile" aria-label="Choose JSON file"/>
+                        <div class="lz-dropzone-icon"><i class="bi bi-filetype-json"></i></div>
+                        <div class="fw-semibold">Drop your JSON file here, or <span class="text-primary">browse</span></div>
+                        <div class="small text-muted mt-1">One language per file · flat or nested keys · max 5 MB</div>
+                    </div>
+                    <div class="lz-file-chip mt-3 d-none" id="fileChip">
+                        <span class="icon"><i class="bi bi-filetype-json"></i></span>
+                        <div class="flex-grow-1 min-w-0">
+                            <div class="fw-semibold text-truncate" id="fileName"></div>
+                            <div class="small text-muted" id="fileMeta"></div>
+                        </div>
+                        <button class="btn btn-sm btn-light" type="button" id="fileRemove" aria-label="Remove file"><i class="bi bi-x-lg"></i></button>
+                    </div>
+                    <div class="lz-callout warn mt-3 d-none" id="fileError"><i class="bi bi-exclamation-triangle"></i><div></div></div>
+
+                    <div class="lz-step mt-4"><span class="lz-step-num">4</span> When a key already exists</div>
+                    <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="mode" checked>
+                        <span><span class="t d-block">Add new keys &amp; fill empty translations</span><span class="d">Existing translations are kept as they are</span></span></label>
+                    <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="mode">
+                        <span><span class="t d-block">Add new keys &amp; overwrite existing translations</span><span class="d">Values from the file win</span></span></label>
+                    <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="mode">
+                        <span><span class="t d-block">Only update existing keys</span><span class="d">Keys not yet in the system are ignored</span></span></label>
+                </div>
+            </div>
+
+            <div class="lz-card d-none" id="previewCard">
+                <div class="lz-card-header">
+                    <div>
+                        <h2>Preview</h2>
+                        <div class="sub" id="previewSub"></div>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height:420px">
+                    <table class="lz-table">
+                        <thead><tr><th style="width:40%">Key</th><th>Value</th></tr></thead>
+                        <tbody id="previewBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <a class="btn btn-light" href="@(appId != null ? Url.Action("Details", "Applications", new { id = appId }) : Url.Action("Index", "Home"))">Cancel</a>
+                <button class="btn btn-primary" type="submit" id="importBtn" disabled><i class="bi bi-cloud-arrow-up"></i> Import translations</button>
+            </div>
+        </div>
+
+        <div class="col-xl-4">
+            <div class="lz-card mb-3">
+                <div class="lz-card-header"><h2>Expected format</h2></div>
+                <div class="lz-card-body">
+                    <p class="small text-2">Flat keys:</p>
+<pre class="lz-code">{
+  <span class="k">"auth.button.sign_in"</span>: <span class="s">"Đăng nhập"</span>,
+  <span class="k">"auth.label.password"</span>: <span class="s">"Mật khẩu"</span>,
+  <span class="k">"home.title.welcome"</span>: <span class="s">"Chào mừng trở lại!"</span>
+}</pre>
+                   
+                </div>
+            </div>
+        </div>
+    </div>
+</form>

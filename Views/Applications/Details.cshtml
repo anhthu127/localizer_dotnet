@@ -1,0 +1,448 @@
+@model AppDetailsViewModel
+@{
+    ViewData["Title"] = Model.App.Name;
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var app = Model.App;
+    var s = Model.Stats;
+    var targetLangs = app.Languages.Where(l => l != MockData.SourceLanguage).ToList();
+    var selectedLang = Model.Lang != null ? MockData.Lang(Model.Lang) : null;
+    var otherLangs = targetLangs.Where(l => l != Model.Lang).ToList();
+    var activeModule = Model.Modules.FirstOrDefault(m => m.Name == Model.Module);
+    var publishTest = new PublishModalModel(s, "TEST");
+    var publishLive = new PublishModalModel(s, "LIVE");
+
+    string PageUrl(int page) => Url.Action("Details", new { id = app.Id, module = Model.Module, lang = Model.Lang, status = Model.Status, q = Model.Query, page })!;
+    // Switching module keeps the language and status, but starts a fresh search.
+    string ModuleUrl(string module) => Url.Action("Details", new { id = app.Id, module, lang = Model.Lang, status = Model.Status == "all" ? null : Model.Status })!;
+}
+
+<div class="lz-breadcrumb"><a asp-action="Index">Applications</a> <i class="bi bi-chevron-right mx-1 small"></i> @app.Name</div>
+
+<div class="lz-page-header">
+    <div class="d-flex align-items-center gap-3">
+        <span class="lz-app-icon lg" style="background:@app.Color"><i class="bi bi-@app.Icon"></i></span>
+        <div>
+            <h1>@app.Name</h1>
+            <p><span class="font-mono small">@app.Code</span> · @app.Platform · @app.Languages.Count languages</p>
+        </div>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+        <div class="dropdown">
+            <button class="btn btn-light dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false"><i class="bi bi-download"></i> Download</button>
+            <ul class="dropdown-menu dropdown-menu-end lz-download-menu">
+                <li><h6 class="dropdown-header">Latest working copy</h6></li>
+                <li>
+                    <button class="dropdown-item" type="button" data-toast="Downloading @(app.Code).zip (@app.Languages.Count languages)… (demo only)">
+                        <i class="bi bi-file-earmark-zip"></i> <b>All languages</b> <span class="lz-download-file">@(app.Code).zip</span>
+                    </button>
+                </li>
+                <li><hr class="dropdown-divider"></li>
+                @foreach (var code in app.Languages)
+                {
+                    var l = MockData.Lang(code);
+                    <li>
+                        <button class="dropdown-item" type="button" data-toast="Downloading @(app.Code)/@(code).json… (demo only)">
+                            <span class="lz-flag">@l.Flag</span> @l.Name <span class="lz-download-file">@(code).json</span>
+                        </button>
+                    </li>
+                }
+                <li><hr class="dropdown-divider"></li>
+                <li><button class="dropdown-item" type="button" data-bs-toggle="modal" data-bs-target="#downloadModal"><i class="bi bi-sliders"></i> More options…</button></li>
+            </ul>
+        </div>
+        <a class="btn btn-light" asp-controller="Keys" asp-action="Upload" asp-route-appId="@app.Id"><i class="bi bi-cloud-arrow-up"></i> Upload JSON</a>
+        <a class="btn btn-primary" asp-controller="Keys" asp-action="Create" asp-route-appId="@app.Id"><i class="bi bi-plus-lg"></i> Add key</a>
+    </div>
+</div>
+
+@if (app.IsLocked)
+{
+    <div class="lz-callout warn mb-3">
+        <i class="bi bi-lock-fill"></i>
+        <div><b>This application is locked.</b> Comtors can no longer edit or upload translations. @Ui.LockSummary(app). Unlock it from the <a asp-action="Index">Applications</a> list.</div>
+    </div>
+}
+else if (app.IsLockScheduled)
+{
+    <div class="lz-callout mb-3">
+        <i class="bi bi-calendar-event"></i>
+        <div><b>A lock is scheduled.</b> Comtors can translate until it starts. @Ui.LockSummary(app). Change it from the <a asp-action="Index">Applications</a> list.</div>
+    </div>
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-6 col-xl-3">
+        <div class="lz-card lz-kpi">
+            <span class="lz-kpi-label">Total keys</span>
+            <div class="lz-kpi-value">@s.TotalKeys</div>
+            <div class="lz-kpi-foot">@(s.TotalKeys * targetLangs.Count) strings to translate</div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="lz-card lz-kpi">
+            <span class="lz-kpi-label">New keys · 7 days</span>
+            <div class="lz-kpi-value">@s.NewKeys</div>
+            <a class="lz-kpi-foot" asp-route-id="@app.Id" asp-route-status="new">View new keys →</a>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="lz-card lz-kpi">
+            <span class="lz-kpi-label">Untranslated</span>
+            <div class="lz-kpi-value" style="color:@(s.Untranslated > 0 ? "var(--lz-bad)" : "inherit")">@s.Untranslated</div>
+            <div class="lz-cov">
+                <div class="lz-cov-track"><div class="lz-cov-fill" style="width:@s.Coverage.ToString("0.#", inv)%"></div></div>
+                <span class="lz-cov-val">@s.Coverage.ToString("0")%</span>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-xl-3">
+        <div class="lz-card lz-kpi">
+            <span class="lz-kpi-label">Last translated</span>
+            <div class="lz-kpi-value" style="font-size:1.4rem" title="@Ui.Exact(app.LastTranslatedAt)">@Ui.Relative(app.LastTranslatedAt)</div>
+            <div class="lz-kpi-foot">by @app.LastTranslatedBy · @Ui.Exact(app.LastTranslatedAt)</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-md-6">
+        <div class="lz-card lz-env-card">
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="lz-env test">TEST</span>
+                <span class="small text-muted">Staging environment for QA</span>
+            </div>
+            <div>
+                <div class="lz-env-version">v@(app.Test.Version)</div>
+                <div class="lz-env-meta">Published @Ui.Relative(app.Test.PublishedAt) by @app.Test.PublishedBy</div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-auto">
+                <span class="lz-pending"><i class="bi bi-arrow-repeat"></i> <b>@s.PendingTest</b> keys changed since last publish</span>
+                <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#publishTEST"><i class="bi bi-send"></i> Publish to TEST</button>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="lz-card lz-env-card live">
+            <div class="d-flex align-items-center justify-content-between">
+                <span class="lz-env live">LIVE</span>
+                <span class="small text-muted">Production – visible to end users</span>
+            </div>
+            <div>
+                <div class="lz-env-version">v@(app.Live.Version)</div>
+                <div class="lz-env-meta">Published @Ui.Relative(app.Live.PublishedAt) by @app.Live.PublishedBy</div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between gap-2 flex-wrap mt-auto">
+                <span class="lz-pending"><i class="bi bi-arrow-repeat"></i> <b>@s.PendingLive</b> keys changed since last publish</span>
+                <button class="btn btn-sm btn-live" type="button" data-bs-toggle="modal" data-bs-target="#publishLIVE"><i class="bi bi-rocket-takeoff"></i> Publish to LIVE</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="lz-card">
+    <ul class="nav lz-tabs" role="tablist">
+        <li class="nav-item"><button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-keys" type="button">Translations <span class="count">@s.TotalKeys</span></button></li>
+        <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-langs" type="button">Languages <span class="count">@app.Languages.Count</span></button></li>
+        @* <li class="nav-item"><button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-history" type="button">Activities history <span class="count">@Model.History.Count</span></button></li> *@
+    </ul>
+
+    <div class="tab-content">
+        @* ---------------- Translations ---------------- *@
+        <div class="tab-pane fade show active" id="tab-keys" role="tabpanel">
+            <div class="lz-modules-layout">
+                <nav class="lz-modules" aria-label="Modules">
+                    <div class="lz-modules-head">Modules <span>@Model.Modules.Count</span></div>
+                    @foreach (var m in Model.Modules)
+                    {
+                        <a class="lz-module @(m.Name == Model.Module ? "active" : "")" href="@ModuleUrl(m.Name)" aria-current="@(m.Name == Model.Module ? "page" : null)">
+                            <i class="bi bi-@(m.Name == Model.Module ? "folder2-open" : "folder2")"></i>
+                            <span class="min-w-0">
+                                <span class="lz-module-name">@m.Name</span>
+                                <span class="lz-module-sub">
+                                    @if (m.Missing > 0) { <span style="color:var(--lz-bad)">@m.Missing untranslated</span> }
+                                    else { <span>All translated</span> }
+                                    @if (m.New > 0) { <span> · @m.New new</span> }
+                                </span>
+                            </span>
+                            <span class="lz-module-count">@m.Total</span>
+                        </a>
+                    }
+                </nav>
+
+                <div class="min-w-0">
+                    <form class="lz-filters" method="get" asp-action="Details" asp-route-id="@app.Id">
+                        @if (Model.Module != null) { <input type="hidden" name="module" value="@Model.Module"/> }
+                        <div class="lz-input-icon">
+                            <i class="bi bi-search"></i>
+                            <input class="form-control" type="search" name="q" value="@Model.Query" placeholder="@(Model.Module != null ? $"Search in {Model.Module}…" : "Search all modules by key or text…")"/>
+                        </div>
+                        @if (targetLangs.Count > 0)
+                        {
+                            <select class="form-select w-auto" name="lang" data-autosubmit aria-label="Translation language">
+                                @foreach (var code in targetLangs)
+                                {
+                                    var l = MockData.Lang(code);
+                                    var ls = Model.Languages.FirstOrDefault(x => x.Language.Code == code);
+                                    <option value="@code" selected="@(Model.Lang == code)">@l.Flag @l.Name @(ls != null ? $"({ls.Coverage:0}%)" : "")</option>
+                                }
+                            </select>
+                        }
+                        <select class="form-select w-auto" name="status" data-autosubmit aria-label="Status">
+                            <option value="all" selected="@(Model.Status == "all")">All statuses</option>
+                            <option value="missing" selected="@(Model.Status == "missing")">Untranslated</option>
+                            <option value="translated" selected="@(Model.Status == "translated")">Translated</option>
+                            <option value="new" selected="@(Model.Status == "new")">New this week</option>
+                        </select>
+                        <button class="btn btn-light" type="submit">Apply</button>
+                        @if (Model.HasFilters)
+                        {
+                            <a class="btn btn-link btn-sm text-muted" asp-action="Details" asp-route-id="@app.Id" asp-route-module="@Model.Module" asp-route-lang="@Model.Lang">Clear filters</a>
+                        }
+                    </form>
+
+                    @if (Model.ShowKeys)
+                    {
+                        <div class="lz-module-bar">
+                            @if (activeModule != null)
+                            {
+                                <span><i class="bi bi-folder2-open"></i> <b class="font-mono">@activeModule.Name</b></span>
+                                <span class="text-muted">@activeModule.Total keys@(selectedLang != null ? $" · {activeModule.Missing} untranslated in {selectedLang.Name}" : "")</span>
+                            }
+                            else
+                            {
+                                <span><i class="bi bi-collection"></i> <b>All modules</b></span>
+                                <span class="text-muted">Pick a module on the left to narrow down</span>
+                            }
+                        </div>
+                    }
+
+                    @if (!Model.ShowKeys)
+                    {
+                        <div class="lz-empty">
+                            <i class="bi bi-folder2-open"></i>
+                            <h3>Select a module</h3>
+                            <p>Pick one of the @Model.Modules.Count modules to see its keys and translations, or search to look across all of them.</p>
+                        </div>
+                    }
+                    else if (Model.Keys.Count == 0)
+                    {
+                        <div class="lz-empty">
+                            <i class="bi bi-inbox"></i>
+                            <h3>No keys match these filters</h3>
+                            <p>Try another language or clear the search.</p>
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="lz-table">
+                                <thead>
+                                <tr>
+                                    <th style="width:26%">Key</th>
+                                    <th>🇬🇧 English <span class="text-lowercase fw-normal">(source)</span></th>
+                                    @if (selectedLang != null)
+                                    {
+                                        <th>@selectedLang.Flag @selectedLang.Name</th>
+                                    }
+                                    @* @if (otherLangs.Count > 0) *@
+                                    @* { *@
+                                    @*     <th>Other languages</th> *@
+                                    @* } *@
+                                    <th>Updated</th>
+                                    <th></th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var k in Model.Keys)
+                                {
+                                    <tr>
+                                        <td>
+                                            <div class="lz-key">
+                                                @Ui.Highlight(k.Key, Model.Query)
+                                                @if (k.IsNew) { <span class="lz-pill new ms-1">NEW</span> }
+                                                @if (k.Format == KeyFormat.LongText) { <span class="lz-pill gray lz-pill-xs" title="Long text / HTML – edited on the full page"><i class="bi bi-file-earmark-richtext"></i> Long</span> }
+                                            </div>
+                                            <div class="lz-key-desc">@k.Description</div>
+                                        </td>
+                                        @if (k.Format == KeyFormat.LongText)
+                                        {
+                                            @* Long text isn't edited inline: no data-translation-cell, so the pencil opens the full page *@
+                                            <td class="lz-translation"><div class="lz-long-preview">@Ui.Highlight(Ui.PlainText(k.Get(MockData.SourceLanguage)), Model.Query)</div></td>
+                                            @if (selectedLang != null)
+                                            {
+                                                <td class="lz-translation">
+                                                    @if (k.IsMissing(Model.Lang!))
+                                                    {
+                                                        <span class="lz-missing"><i class="bi bi-exclamation-circle"></i> Not translated</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <div class="lz-long-preview">@Ui.Highlight(Ui.PlainText(k.Get(Model.Lang!)), Model.Query)</div>
+                                                    }
+                                                </td>
+                                            }
+                                        }
+                                        else
+                                        {
+                                        <td class="lz-translation">@Ui.Highlight(k.Get(MockData.SourceLanguage), Model.Query)</td>
+                                        @if (selectedLang != null)
+                                        {
+                                            <td class="lz-translation lz-transated-text" data-translation-cell
+                                                data-value="@k.Get(Model.Lang!)" data-key="@k.Key" data-lang-name="@selectedLang.Name">
+                                                <div class="lz-cell-view">
+                                                    @if (k.IsMissing(Model.Lang!))
+                                                    {
+                                                        <span class="lz-missing"><i class="bi bi-exclamation-circle"></i> Not translated</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        @Ui.Highlight(k.Get(Model.Lang!), Model.Query)
+                                                    }
+                                                </div>
+                                            </td>
+                                        }
+                                        }
+                                        @* @if (otherLangs.Count > 0) *@
+                                        @* { *@
+                                        @*     <td> *@
+                                        @*         <div class="lz-lang-chips"> *@
+                                        @*             @foreach (var code in otherLangs) *@
+                                        @*             { *@
+                                        @*                 var missing = k.IsMissing(code); *@
+                                        @*                 <span class="lz-lang-chip @(missing ? "missing" : "")" *@
+                                        @*                       title="@MockData.Lang(code).Name: @(missing ? "not translated" : k.Get(code))">@code</span> *@
+                                        @*             } *@
+                                        @*         </div> *@
+                                        @*     </td> *@
+                                        @* } *@
+                                        <td class="text-nowrap">
+                                            <div title="@Ui.Exact(k.UpdatedAt)">@Ui.Relative(k.UpdatedAt)</div>
+                                            <div class="small text-muted">@k.UpdatedBy</div>
+                                        </td>
+                                        <td class="text-end text-nowrap">
+                                            <a class="btn btn-sm btn-light" asp-controller="Keys" asp-action="Edit" asp-route-id="@k.Id" title="Edit translations" data-inline-edit><i class="bi bi-pencil"></i></a>
+                                            <div class="dropdown d-inline-block">
+                                                <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" type="button" aria-label="More"><i class="bi bi-three-dots"></i></button>
+                                                <ul class="dropdown-menu dropdown-menu-end">
+                                                    <li><button class="dropdown-item" type="button" data-copy="@k.Key"><i class="bi bi-clipboard me-2"></i>Copy key</button></li>
+                                                    <li><a class="dropdown-item" asp-controller="Keys" asp-action="Edit" asp-route-id="@k.Id"><i class="bi bi-translate me-2"></i>Translate</a></li>
+                                                    <li><hr class="dropdown-divider"></li>
+                                                    <li><button class="dropdown-item text-danger" type="button" data-toast="Key “@k.Key” deleted (demo only)"><i class="bi bi-trash me-2"></i>Delete key</button></li>
+                                                </ul>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="lz-pager">
+                            <span>Showing @((Model.Page - 1) * 25 + 1)–@((Model.Page - 1) * 25 + Model.Keys.Count) of @Model.TotalMatches keys</span>
+                            @if (Model.PageCount > 1)
+                            {
+                                <ul class="pagination pagination-sm">
+                                    <li class="page-item @(Model.Page == 1 ? "disabled" : "")"><a class="page-link" href="@PageUrl(Model.Page - 1)">‹</a></li>
+                                    @for (var p = 1; p <= Model.PageCount; p++)
+                                    {
+                                        <li class="page-item @(p == Model.Page ? "active" : "")"><a class="page-link" href="@PageUrl(p)">@p</a></li>
+                                    }
+                                    <li class="page-item @(Model.Page == Model.PageCount ? "disabled" : "")"><a class="page-link" href="@PageUrl(Model.Page + 1)">›</a></li>
+                                </ul>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+
+        @* ---------------- Languages ---------------- *@
+        <div class="tab-pane fade" id="tab-langs" role="tabpanel">
+            <div class="table-responsive">
+                <table class="lz-table">
+                    <thead>
+                    <tr>
+                        <th>Language</th>
+                        <th class="num">Translated</th>
+                        <th class="num">Missing</th>
+                        <th style="width:28%">Coverage</th>
+                        <th>Last update</th>
+                        <th></th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr>
+                        <td><span class="lz-flag">🇬🇧</span> <b>English</b> <span class="lz-pill blue ms-1">Source</span></td>
+                        <td class="num">@s.TotalKeys</td>
+                        <td class="num text-muted">–</td>
+                        <td><div class="lz-cov"><div class="lz-cov-track"><div class="lz-cov-fill" style="width:100%"></div></div><span class="lz-cov-val">100%</span></div></td>
+                        <td class="text-muted">–</td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-light" type="button" data-toast="Downloading @(app.Code)/en.json… (demo only)"><i class="bi bi-download"></i> en.json</button>
+                        </td>
+                    </tr>
+                    @foreach (var l in Model.Languages)
+                    {
+                        <tr>
+                            <td><span class="lz-flag">@l.Language.Flag</span> <b>@l.Language.Name</b> <span class="small text-muted">@l.Language.NativeName</span></td>
+                            <td class="num">@l.Translated</td>
+                            <td class="num">
+                                @if (l.Missing > 0)
+                                {
+                                    <a class="fw-semibold" style="color:var(--lz-bad)" asp-route-id="@app.Id" asp-route-lang="@l.Language.Code" asp-route-status="missing">@l.Missing</a>
+                                }
+                                else { <span class="text-muted">0</span> }
+                            </td>
+                            <td><div class="lz-cov"><div class="lz-cov-track"><div class="lz-cov-fill" style="width:@l.Coverage.ToString("0.#", inv)%"></div></div><span class="lz-cov-val">@l.Coverage.ToString("0")%</span></div></td>
+                            <td>@(l.LastUpdated is DateTime d ? Ui.Relative(d) : "–")</td>
+                            <td class="text-end text-nowrap">
+                                <a class="btn btn-sm btn-light" asp-controller="Keys" asp-action="Upload" asp-route-appId="@app.Id" asp-route-lang="@l.Language.Code" title="Upload @(l.Language.Code).json"><i class="bi bi-upload"></i></a>
+                                <button class="btn btn-sm btn-light" type="button" data-toast="Downloading @(app.Code)/@(l.Language.Code).json… (demo only)"><i class="bi bi-download"></i> @(l.Language.Code).json</button>
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        @* ---------------- Publish history ---------------- *@
+        <div class="tab-pane fade" id="tab-history" role="tabpanel">
+            <div class="table-responsive">
+                <table class="lz-table">
+                    <thead>
+                    <tr>
+                        <th>Environment</th>
+                        <th>Version</th>
+                        <th>Note</th>
+                        <th class="num">Changes</th>
+                        <th>Published</th>
+                        <th>By</th>
+                        <th>Status</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var h in Model.History)
+                    {
+                        <tr>
+                            <td><span class="lz-env @h.Environment.ToLowerInvariant()">@h.Environment</span></td>
+                            <td class="font-mono small">v@(h.Version)</td>
+                            <td class="text-2">@h.Note</td>
+                            <td class="num">@h.Changes</td>
+                            <td title="@Ui.Exact(h.At)">@Ui.Relative(h.At)</td>
+                            <td>@h.By</td>
+                            <td>
+                                @if (h.Success) { <span class="lz-pill good"><i class="bi bi-check-circle"></i> Success</span> }
+                                else { <span class="lz-pill bad"><i class="bi bi-x-circle"></i> Failed</span> }
+                            </td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<partial name="_DownloadModal" model="app"/>
+<partial name="_PublishModal" model="publishTest"/>
+<partial name="_PublishModal" model="publishLive"/>

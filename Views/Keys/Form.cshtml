@@ -1,0 +1,160 @@
+@model KeyFormViewModel
+@{
+    var key = Model.Existing;
+    var app = Model.AppId is int id ? MockData.App(id) : null;
+    ViewData["Title"] = Model.IsEdit ? $"Edit {key!.Key}" : "Add new key";
+    var isLong = key?.Format == KeyFormat.LongText;
+}
+
+<div class="lz-breadcrumb">
+    @if (app != null)
+    {
+        <a asp-controller="Applications" asp-action="Index">Applications</a>
+        <i class="bi bi-chevron-right mx-1 small"></i>
+        <a asp-controller="Applications" asp-action="Details" asp-route-id="@app.Id">@app.Name</a>
+        <i class="bi bi-chevron-right mx-1 small"></i>
+    }
+    @(Model.IsEdit ? "Edit key" : "Add new key")
+</div>
+
+<div class="lz-page-header">
+    <div>
+        <h1>@(Model.IsEdit ? "Edit translations" : "Add new key")</h1>
+        <p>@(Model.IsEdit ? "Update the source text and translations for this key." : "Register a new label and its translations. Languages left empty are marked as untranslated.")</p>
+    </div>
+</div>
+
+<form data-demo-submit="@(Model.IsEdit ? "Translations saved" : "Key created") (demo only)">
+    <div class="row g-3">
+        <div class="col-xl-4">
+            <div class="lz-card mb-3">
+                <div class="lz-card-header"><h2>Key details</h2></div>
+                <div class="lz-card-body">
+                    <div class="mb-3">
+                        <label class="form-label" for="appSelect">Application</label>
+                        <select class="form-select" id="appSelect" required disabled="@Model.IsEdit">
+                            <option value="">Select an application…</option>
+                            @foreach (var a in MockData.Apps)
+                            {
+                                <option value="@a.Id" selected="@(a.Id == Model.AppId)" data-langs="@string.Join(",", a.Languages)">@a.Name</option>
+                            }
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="keyName">Key</label>
+                        <input class="form-control font-mono" id="keyName" value="@key?.Key" placeholder="checkout.button.pay_now" required
+                               pattern="[a-z0-9_]+(\.[a-z0-9_]+)*" readonly="@Model.IsEdit"/>
+                        <div class="form-text">Lowercase, dot-separated: <code>module.group.name</code></div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Content type</label>
+                        <div class="lz-seg lz-format-seg">
+                            <input type="radio" name="format" id="fmtLabel" value="Label" checked="@(!isLong)"/>
+                            <label for="fmtLabel"><i class="bi bi-fonts"></i> Short label</label>
+                            <input type="radio" name="format" id="fmtLong" value="LongText" checked="@isLong"/>
+                            <label for="fmtLong"><i class="bi bi-file-earmark-richtext"></i> Long text / HTML</label>
+                        </div>
+                        <div class="form-text @(isLong ? "d-none" : "")" data-format-only="Label">Buttons, titles, messages – a word or a sentence.</div>
+                        <div class="form-text @(isLong ? "" : "d-none")" data-format-only="LongText">Terms, policies, emails… One language at a time, with a larger editor and HTML preview.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="keyDesc">Context for translators</label>
+                        <textarea class="form-control" id="keyDesc" rows="3" placeholder="Where is this text shown? Any length limit?">@key?.Description</textarea>
+                    </div>
+                    <div class="mb-1 @(isLong ? "d-none" : "")" data-format-only="Label">
+                        <label class="form-label" for="maxLen">Max length <span class="text-muted fw-normal">(optional)</span></label>
+                        <input class="form-control" id="maxLen" type="number" min="1" placeholder="e.g. 24"/>
+                    </div>
+                </div>
+            </div>
+
+            @if (Model.IsEdit)
+            {
+                <div class="lz-card mb-3">
+                    <div class="lz-card-body small">
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Created</span><span>@Ui.Exact(key!.CreatedAt) · @key.CreatedBy</span></div>
+                        <div class="d-flex justify-content-between py-1"><span class="text-muted">Last updated</span><span>@Ui.Relative(key.UpdatedAt) · @key.UpdatedBy</span></div>
+                    </div>
+                </div>
+            }
+
+            @* <div class="lz-card"> *@
+            @*     <div class="lz-card-body"> *@
+            @*         <div class="form-check form-switch"> *@
+            @*             <input class="form-check-input" type="checkbox" id="notify" checked> *@
+            @*             <label class="form-check-label" for="notify">Notify comtors about missing translations</label> *@
+            @*         </div> *@
+            @*     </div> *@
+            @* </div> *@
+        </div>
+
+        <div class="col-xl-8">
+            <div class="lz-card @(isLong ? "is-long" : "")" data-translations>
+                <div class="lz-card-header">
+                    <div>
+                        <h2>Translations</h2>
+                        <div class="sub"><span data-filled-count>0</span> of <span data-lang-total>@MockData.Languages.Count</span> languages filled</div>
+                    </div>
+                    <button class="btn btn-sm btn-soft" type="button" data-toast="Machine translation suggestions filled in (demo only)"><i class="bi bi-magic"></i> Suggest translations</button>
+                </div>
+                @* Long text: pick one language at a time *@
+                <div class="lz-lang-tabs" role="tablist" aria-label="Language">
+                    @foreach (var l in MockData.Languages)
+                    {
+                        var supported = app == null || app.Languages.Contains(l.Code);
+                        <button type="button" class="lz-lang-tab" role="tab" data-lang-tab="@l.Code" title="@l.Name" style="@(supported ? "" : "display:none")">
+                            <span class="lz-flag">@l.Flag</span> @l.Code <span class="dot"></span>
+                        </button>
+                    }
+                </div>
+                <div class="lz-card-body py-0">
+                    @foreach (var l in MockData.Languages)
+                    {
+                        var isSource = l.Code == MockData.SourceLanguage;
+                        var supported = app == null || app.Languages.Contains(l.Code);
+                        <div class="lz-lang-field @(isSource ? "source" : "")" data-lang-row="@l.Code" style="@(supported ? "" : "display:none")">
+                            <div class="meta">
+                                <span class="lz-flag" style="font-size:1.4rem">@l.Flag</span>
+                                <div>
+                                    <div class="name">@l.Name @if (isSource) { <span class="lz-pill blue ms-1">Source</span> }</div>
+                                    <div class="code">@l.Code · @l.NativeName</div>
+                                </div>
+                            </div>
+                            <div class="lz-long-tools">
+                                <span class="lz-char-count" data-char-count></span>
+                                @if (!isSource)
+                                {
+                                    <button class="btn btn-sm btn-light" type="button" data-copy-source title="Start from the English text and translate it in place – keeps the HTML tags"><i class="bi bi-files"></i> Copy source</button>
+                                }
+                                <div class="lz-seg sm">
+                                    <input type="radio" name="view-@l.Code" id="view-@l.Code-write" value="write" data-view checked/>
+                                    <label for="view-@l.Code-write"><i class="bi bi-code-slash"></i> Edit</label>
+                                    <input type="radio" name="view-@l.Code" id="view-@l.Code-preview" value="preview" data-view/>
+                                    <label for="view-@l.Code-preview"><i class="bi bi-eye"></i> Preview</label>
+                                </div>
+                            </div>
+                            @if (!isSource)
+                            {
+                                <details class="lz-source-ref" open>
+                                    <summary>@MockData.Lang(MockData.SourceLanguage).Flag English source</summary>
+                                    <pre data-source-ref></pre>
+                                </details>
+                            }
+                            <textarea class="form-control" rows="1" data-translation required="@isSource"
+                                      placeholder="@(isSource ? "Source text in English (required)" : $"{l.Name} translation")">@key?.Get(l.Code)</textarea>
+                            <iframe class="lz-preview" sandbox="" title="@l.Name preview" data-preview></iframe>
+                        </div>
+                    }
+                </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2 mt-3">
+                <a class="btn btn-light" href="@(app != null ? Url.Action("Details", "Applications", new { id = app.Id }) : Url.Action("Index", "Home"))">Cancel</a>
+                @if (!Model.IsEdit)
+                {
+                    <button class="btn btn-light" type="submit" name="another"><i class="bi bi-plus-lg"></i> Save &amp; add another</button>
+                }
+                <button class="btn btn-primary" type="submit"><i class="bi bi-check-lg"></i> @(Model.IsEdit ? "Save changes" : "Save key")</button>
+            </div>
+        </div>
+    </div>
+</form>

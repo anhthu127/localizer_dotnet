@@ -1,0 +1,183 @@
+﻿@model DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var maxDaily = Model.DailyNewKeys.Max(d => d.Count);
+    var yMax = Math.Max(5, (int)Math.Ceiling(maxDaily / 5.0) * 5);
+    var delta = Model.NewKeys - Model.NewKeysPrevious;
+    var attention = Model.Apps.OrderByDescending(a => a.Untranslated).Take(4).ToList();
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Dashboard</h1>
+        <p>Translation status for @Model.Apps.Count applications in @MockData.Languages.Count languages</p>
+    </div>
+    <div class="d-flex gap-2">
+        @* <a class="btn btn-light" asp-controller="Keys" asp-action="Upload"><i class="bi bi-cloud-arrow-up"></i> Upload JSON</a>
+        <a class="btn btn-primary" asp-controller="Keys" asp-action="Create"><i class="bi bi-plus-lg"></i> Add new key</a> *@
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-sm-6 col-xl-3">
+        <div class="lz-card lz-kpi">
+            <div class="lz-kpi-top"><span class="lz-kpi-label">Total keys</span><span class="lz-kpi-icon"><i
+                class="bi bi-key"></i></span></div>
+                <div class="lz-kpi-value">@Model.TotalKeys.ToString("N0")</div>
+                <div class="lz-kpi-foot">across @Model.Apps.Count applications</div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+            <div class="lz-card lz-kpi">
+                <div class="lz-kpi-top"><span class="lz-kpi-label">New keys · last 7 days</span><span class="lz-kpi-icon"><i
+                    class="bi bi-plus-circle"></i></span></div>
+                    <div class="lz-kpi-value">@Model.NewKeys</div>
+                    <div class="lz-kpi-foot">
+                        <span class="lz-delta up">@(delta >= 0 ? "▲ +" : "▼ ")@delta</span> vs previous 7 days
+                        (@Model.NewKeysPrevious)
+                    </div>
+                </div>
+            </div>
+            <div class="col-sm-6 col-xl-3">
+                <div class="lz-card lz-kpi">
+                    <div class="lz-kpi-top"><span class="lz-kpi-label">Untranslated strings</span><span
+                        class="lz-kpi-icon warn"><i class="bi bi-exclamation-triangle"></i></span></div>
+                        <div class="lz-kpi-value">@Model.Untranslated.ToString("N0")</div>
+                        <div class="lz-kpi-foot">key × language pairs still waiting for a comtor</div>
+                    </div>
+                </div>
+                <div class="col-sm-6 col-xl-3">
+                    <div class="lz-card lz-kpi">
+                        <div class="lz-kpi-top"><span class="lz-kpi-label">Overall coverage</span><span class="lz-kpi-icon good"><i
+                            class="bi bi-check2-circle"></i></span></div>
+                            <div class="lz-kpi-value">@Model.Coverage.ToString("0.0")%</div>
+                            <div class="lz-cov-track mt-1">
+                                <div class="lz-cov-fill"
+                                     style="width:@Model.Coverage.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)%">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-5">
+                        <div class="lz-card h-100">
+                            <div class="lz-card-header">
+                                <div>
+                                    <h2>Locked applications</h2>
+                                    <div class="sub">Comtors can't translate these until the lock ends</div>
+                                </div>
+                                <span class="lz-pill @(Model.LockedApps.Count > 0 ? "warn" : "gray")">@Model.LockedApps.Count</span>
+                            </div>
+                            <div class="lz-card-body py-2">
+                                @if (Model.LockedApps.Count == 0)
+                                {
+                                    <div class="text-muted small py-3 text-center"><i class="bi bi-unlock"></i> No application is locked
+                                    </div>
+                                }
+                                @foreach (var app in Model.LockedApps)
+                                {
+                                    var daysLeft = app.LockedUntil is DateTime u ? (u.Date - MockData.Now.Date).Days : (int?)null;
+                                    <a class="lz-dash-lock" asp-controller="Applications" asp-action="Details" asp-route-id="@app.Id">
+                                        <span class="lz-app-icon sm" style="background:@app.Color"><i class="bi bi-@app.Icon"></i></span>
+                                        <div class="flex-grow-1 min-w-0">
+                                            <div class="fw-semibold text-truncate">@app.Name</div>
+                                            <div class="small text-muted">
+                                                @(app.IsLockScheduled ? "Starts" : "Since") @Ui.Day(app.LockedAt!.Value)
+                                            </div>
+                                        </div>
+                                        <div class="text-end flex-shrink-0">
+                                            @if (app.IsLockScheduled)
+                                            {
+                                                <span class="lz-pill blue"><i class="bi bi-calendar-event"></i> Scheduled</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="lz-pill warn"><i class="bi bi-lock-fill"></i> Locked</span>
+                                            }
+                                            <div class="small text-muted mt-1">
+                                                @if (app.LockedUntil is DateTime until)
+                                                {
+                                                    <text>until <b class="text-body">@Ui.Day(until)</b></text>
+                                                    @if (!app.IsLockScheduled)
+                                                    {
+                                                        <text> · @(daysLeft == 0 ? "ends today" : daysLeft == 1 ? "1 day left" : $"{daysLeft} days left")</text>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <text>until unlocked</text>
+                                                }
+                                            </div>
+                                        </div>
+                                    </a>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="lz-card h-100">
+                            <div class="lz-card-header">
+                                <div>
+                                    <h2>Keys to translate</h2>
+                                    <div class="sub">Untranslated keys per language, across all applications</div>
+                                </div>
+                                <a class="btn btn-sm btn-light" asp-controller="Languages" asp-action="Index">All languages</a>
+                            </div>
+                            <div class="lz-card-body py-2">
+                                @foreach (var l in Model.Languages)
+                                {
+                                    var pct = l.Coverage.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                                    <div class="lz-lang-row">
+                                        <div class="lz-lang-name"><span class="lz-flag">@l.Language.Flag</span>@l.Language.Name</div>
+                                        <div class="lz-cov-track" title="@l.Coverage.ToString("0.0")% translated">
+                                            <div class="lz-cov-fill" style="width:@pct%"></div>
+                                        </div>
+                                        <div class="lz-dash-count">
+                                            @if (l.Missing == 0)
+                                            {
+                                                <span class="lz-pill good"><i class="bi bi-check2"></i> Done</span>
+                                            }
+                                            else
+                                            {
+                                                <b>@l.Missing.ToString("N0")</b> <span class="text-muted small">keys</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lz-card">
+                    <div class="lz-card-header">
+                        <div>
+                            <h2>Needs attention</h2>
+                            <div class="sub">Apps with the most untranslated strings</div>
+                        </div>
+                        <a class="btn btn-sm btn-light" asp-controller="Activity" asp-action="Index"><i class="bi bi-clock-history"></i>
+                            View activity</a>
+                        </div>
+                        <div class="lz-card-body">
+                            <div class="row g-3">
+                                @foreach (var a in attention)
+                                {
+                                    <div class="col-md-6 col-xl-3">
+                                        <div class="lz-mini-stat d-flex align-items-center gap-3 h-100">
+                                            <span class="lz-app-icon sm" style="background:@a.App.Color"><i
+                                                class="bi bi-@a.App.Icon"></i></span>
+                                                <div class="flex-grow-1 min-w-0">
+                                                    <div class="fw-semibold text-truncate">@a.App.Name</div>
+                                                    <div class="small" style="color:var(--lz-bad)">@a.Untranslated missing</div>
+                                                    <div class="small text-muted text-truncate">translated @Ui.Relative(a.App.LastTranslatedAt)</div>
+                                                </div>
+                                                <a class="btn btn-sm btn-soft" asp-controller="Applications" asp-action="Details"
+                                                   asp-route-id="@a.App.Id" asp-route-status="missing">Review</a>
+                                            </div>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
+                        </div>

@@ -1,0 +1,148 @@
+@model AppPanelViewModel
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var s = Model.Stats;
+    var app = s.App;
+    var targets = app.Languages.Where(l => l != MockData.SourceLanguage).ToList();
+    var lockClass = app.IsLocked ? "is-locked" : app.IsLockScheduled ? "is-lock-scheduled" : "";
+    var today = MockData.Now.ToString("yyyy-MM-dd", inv);
+}
+
+<div class="offcanvas-header lz-drawer-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+        <span class="lz-app-icon" style="background:@app.Color"><i class="bi bi-@app.Icon"></i></span>
+        <div class="min-w-0">
+            <h5 class="offcanvas-title mb-0" id="appDrawerTitle">@app.Name</h5>
+            <div class="small text-muted"><span class="font-mono">@app.Code</span> · @app.Platform</div>
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+</div>
+
+<div class="offcanvas-body p-0">
+    <section class="lz-drawer-section">
+        <h6 class="lz-drawer-heading">Translation lock</h6>
+        <div class="lz-lock-panel @lockClass" data-lock-scope="@app.Id">
+            <span class="lz-lock-panel-icon">
+                <i class="bi bi-unlock when-open"></i><i class="bi bi-lock-fill when-locked"></i><i class="bi bi-calendar-event when-scheduled"></i>
+            </span>
+            <div class="flex-grow-1 min-w-0">
+                <div class="fw-semibold">
+                    <span class="when-open">Open for translation</span>
+                    <span class="when-locked">Locked</span>
+                    <span class="when-scheduled">Lock scheduled</span>
+                </div>
+                <div class="small text-muted">
+                    <span class="when-open">Comtors can edit and upload translations.</span>
+                    <span class="when-locked">Comtors can no longer edit or upload translations.</span>
+                    <span class="when-scheduled">Comtors can translate until the lock starts.</span>
+                    <span class="lz-lock-detail" data-lock-detail="@app.Id">@Ui.LockSummary(app)</span>
+                </div>
+            </div>
+            <button class="btn btn-sm btn-light when-locked" type="button" data-lock-clear="@app.Id" data-app-name="@app.Name">
+                <i class="bi bi-unlock"></i> Unlock
+            </button>
+            <button class="btn btn-sm btn-light when-scheduled" type="button" data-lock-clear="@app.Id" data-app-name="@app.Name">
+                Cancel
+            </button>
+        </div>
+
+        <form class="lz-lock-form @lockClass" data-lock-scope="@app.Id" data-lock-form="@app.Id" data-app-name="@app.Name" novalidate>
+            <div class="lz-seg w-100 mb-3" role="group" aria-label="Lock mode">
+                <input type="radio" name="lockMode" id="lm-now-@app.Id" value="now" checked>
+                <label for="lm-now-@app.Id"><i class="bi bi-lock"></i> Lock now</label>
+                <input type="radio" name="lockMode" id="lm-schedule-@app.Id" value="schedule">
+                <label for="lm-schedule-@app.Id"><i class="bi bi-calendar-range"></i> Schedule</label>
+            </div>
+            <p class="small text-muted mb-3" data-lock-mode-hint="now">The lock starts immediately and stays on until someone unlocks it.</p>
+            <div class="d-none" data-lock-mode-hint="schedule">
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small mb-1" for="lock-from-@app.Id">Start date</label>
+                        <input class="form-control form-control-sm" type="date" id="lock-from-@app.Id" name="from" min="@today" value="@today"/>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small mb-1" for="lock-until-@app.Id">End date</label>
+                        <input class="form-control form-control-sm" type="date" id="lock-until-@app.Id" name="until" min="@today"/>
+                        <div class="invalid-feedback">Pick an end date on or after the start date.</div>
+                    </div>
+                </div>
+                <p class="small text-muted mb-3">Locked from the start of the first day through the end of the last day, then opens again automatically.</p>
+            </div>
+            <div class="d-flex justify-content-end">
+                <button class="btn btn-sm btn-warning" type="submit" data-lock-submit><i class="bi bi-lock-fill"></i> <span>Lock now</span></button>
+            </div>
+        </form>
+    </section>
+
+    <section class="lz-drawer-section">
+        <div class="row g-2">
+            <div class="col-6"><div class="lz-mini-stat"><div class="v">@s.TotalKeys</div><div class="l">Total keys</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat"><div class="v" style="color:@(s.UntranslatedKeys > 0 ? "var(--lz-bad)" : "inherit")">@s.UntranslatedKeys</div><div class="l">Untranslated keys</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat"><div class="v">@s.Coverage.ToString("0.0")%</div><div class="l">Overall coverage</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat" title="@Ui.Exact(app.LastTranslatedAt)"><div class="v" style="font-size:1rem;line-height:1.65rem">@Ui.Relative(app.LastTranslatedAt)</div><div class="l">Last translated · @app.LastTranslatedBy</div></div></div>
+        </div>
+    </section>
+
+    <section class="lz-drawer-section">
+        <h6 class="lz-drawer-heading">By language</h6>
+        @if (Model.Languages.Count == 0)
+        {
+            <p class="small text-muted mb-0">No target languages configured yet.</p>
+        }
+        @foreach (var l in Model.Languages)
+        {
+            <a class="lz-drawer-lang" asp-action="Details" asp-route-id="@app.Id" asp-route-lang="@l.Language.Code" asp-route-status="@(l.Missing > 0 ? "missing" : "all")">
+                <div class="d-flex align-items-center justify-content-between gap-2">
+                    <span class="lz-lang-name"><span class="lz-flag">@l.Language.Flag</span> @l.Language.Name</span>
+                    <span class="small text-muted text-nowrap" title="@(l.LastUpdated is DateTime lu ? Ui.Exact(lu) : "")">
+                        <i class="bi bi-clock"></i> @(l.LastUpdated is DateTime d ? Ui.Relative(d) : "never")
+                    </span>
+                </div>
+                <div class="lz-cov mt-1">
+                    <div class="lz-cov-track"><div class="lz-cov-fill" style="width:@l.Coverage.ToString("0.#", inv)%"></div></div>
+                    <span class="lz-cov-val">@l.Coverage.ToString("0")%</span>
+                </div>
+                <div class="small text-muted mt-1">
+                    @l.Translated / @l.Total translated
+                    @if (l.Missing > 0) { <text>· </text><span style="color:var(--lz-bad)">@l.Missing missing</span> }
+                </div>
+            </a>
+        }
+    </section>
+
+    <section class="lz-drawer-section" id="drawer-languages">
+        <h6 class="lz-drawer-heading">Languages to translate</h6>
+        <p class="small text-muted">Only the selected languages are shown to comtors and counted in coverage. English is the source language.</p>
+        <form data-demo-submit="Language settings for @app.Name saved (demo only)">
+            <div class="lz-check-tile mb-2" style="cursor:default;background:var(--lz-surface-2)">
+                <input class="form-check-input" type="checkbox" checked disabled/>
+                <span class="lz-flag">🇬🇧</span> English <span class="lz-pill blue ms-auto">Source</span>
+            </div>
+            <div class="lz-check-grid lz-check-grid-2">
+                @foreach (var l in MockData.Languages.Where(l => l.Code != MockData.SourceLanguage))
+                {
+                    <label class="lz-check-tile">
+                        <input class="form-check-input" type="checkbox" name="langs" value="@l.Code" data-group="drawer-langs-@app.Id"
+                               data-was-checked="@(targets.Contains(l.Code) ? "true" : "false")" checked="@targets.Contains(l.Code)"/>
+                        <span class="lz-flag">@l.Flag</span> @l.Name
+                    </label>
+                }
+            </div>
+            <div class="lz-callout warn mt-3 d-none" data-removed-warning>
+                <i class="bi bi-exclamation-triangle"></i>
+                <div>Removed languages are hidden from comtors and downloads. Existing translations are kept and come back if you re-enable the language.</div>
+            </div>
+            <div class="d-flex align-items-center justify-content-between mt-3">
+                <span class="small text-muted"><span data-count-for="drawer-langs-@app.Id">@targets.Count</span> of @(MockData.Languages.Count - 1) selected</span>
+                <button class="btn btn-sm btn-primary" type="submit" data-requires-group="drawer-langs-@app.Id">Save languages</button>
+            </div>
+        </form>
+    </section>
+</div>
+
+<div class="lz-drawer-footer">
+    <a class="btn btn-primary flex-fill" asp-action="Details" asp-route-id="@app.Id"><i class="bi bi-box-arrow-up-right"></i> Open translations</a>
+    <a class="btn btn-light" href="@Url.Action("Details", new { id = app.Id })#download"><i class="bi bi-download"></i> Download</a>
+    <a class="btn btn-light" asp-controller="Activity" asp-action="Index" asp-route-appId="@app.Id" title="Activity"><i class="bi bi-clock-history"></i></a>
+</div>

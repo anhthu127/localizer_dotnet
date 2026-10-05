@@ -1,0 +1,79 @@
+@model LanguagePanelViewModel
+@{
+    var inv = System.Globalization.CultureInfo.InvariantCulture;
+    var o = Model.Overview;
+    var l = Model.Language;
+    var s = o.Stat;
+    var langJson = System.Text.Json.JsonSerializer.Serialize(new { l.Code, l.Name, l.NativeName, l.Flag, Translators = o.Translators.Select(u => u.Id) });
+
+    // One application's progress for this language; links to its missing strings.
+    async Task AppProgress(AppLanguageProgress p)
+    {
+        <a class="lz-drawer-lang" asp-controller="Applications" asp-action="Details" asp-route-id="@p.App.Id" asp-route-lang="@l.Code" asp-route-status="@(p.Missing > 0 ? "missing" : "all")">
+            <div class="d-flex align-items-center justify-content-between gap-2">
+                <span class="lz-lang-name">
+                    <span class="lz-dot" style="background:@p.App.Color"></span> @p.App.Name
+                    @if (p.App.IsLocked) { <i class="bi bi-lock-fill" style="color:var(--lz-warn);font-size:.75rem" title="Locked"></i> }
+                </span>
+                <span class="small text-muted text-nowrap" title="@(p.LastUpdated is DateTime lu ? Ui.Exact(lu) : "")">
+                    <i class="bi bi-clock"></i> @(p.LastUpdated is DateTime d ? Ui.Relative(d) : "never")
+                </span>
+            </div>
+            <div class="lz-cov mt-1">
+                <div class="lz-cov-track"><div class="lz-cov-fill" style="width:@p.Coverage.ToString("0.#", inv)%"></div></div>
+                <span class="lz-cov-val">@p.Coverage.ToString("0")%</span>
+            </div>
+            <div class="small text-muted mt-1">
+                @p.Translated / @p.Total translated
+                @if (p.Missing > 0) { <text>· </text><span style="color:var(--lz-bad)">@p.Missing missing</span> }
+            </div>
+        </a>
+    }
+}
+
+<div class="offcanvas-header lz-drawer-header">
+    <div class="d-flex align-items-center gap-3 min-w-0">
+        <span class="lz-flag" style="font-size:2.2rem">@l.Flag</span>
+        <div class="min-w-0">
+            <h5 class="offcanvas-title mb-0" id="langDrawerTitle">@l.Name</h5>
+            <div class="small text-muted">@l.NativeName · <span class="font-mono">@l.Code</span></div>
+        </div>
+    </div>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Close"></button>
+</div>
+
+<div class="offcanvas-body p-0">
+    <section class="lz-drawer-section">
+        <div class="row g-2">
+            <div class="col-6"><div class="lz-mini-stat"><div class="v">@((s?.Coverage ?? 100).ToString("0.0"))%</div><div class="l">Completion</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat"><div class="v" style="color:@(s?.Missing > 0 ? "var(--lz-bad)" : "inherit")">@(s?.Missing ?? 0)</div><div class="l">Missing strings</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat"><div class="v">@o.Apps.Count</div><div class="l">Applications</div></div></div>
+            <div class="col-6"><div class="lz-mini-stat"><div class="v">@o.Translators.Count <span class="text-muted fw-normal" style="font-size:.85rem">/ @MockData.MaxTranslators</span></div><div class="l">Translators</div></div></div>
+        </div>
+        @if (s != null)
+        {
+            <div class="lz-cov mt-3">
+                <div class="lz-cov-track"><div class="lz-cov-fill" style="width:@s.Coverage.ToString("0.#", inv)%"></div></div>
+                <span class="lz-cov-val">@s.Coverage.ToString("0")%</span>
+            </div>
+            <div class="small text-muted mt-1">@s.Translated.ToString("N0") of @s.Total.ToString("N0") strings translated across all applications</div>
+        }
+    </section>
+
+    <section class="lz-drawer-section">
+        <h6 class="lz-drawer-heading">Applications</h6>
+        @if (Model.Apps.Count == 0)
+        {
+            <p class="small text-muted mb-0">No application uses @l.Name yet.</p>
+        }
+        @foreach (var p in Model.Apps)
+        {
+            await AppProgress(p);
+        }
+    </section>
+</div>
+
+<div class="lz-drawer-footer">
+    <button class="btn btn-primary flex-fill" type="button" data-bs-toggle="modal" data-bs-target="#langModal" data-lang="@langJson"><i class="bi bi-pencil"></i> Edit language</button>
+    <a class="btn btn-light" asp-controller="Activity" asp-action="Index" asp-route-lang="@l.Code" title="Activity"><i class="bi bi-clock-history"></i></a>
+</div>

@@ -1,0 +1,134 @@
+@model ActivityViewModel
+@{
+    ViewData["Title"] = "Activity";
+    var filterApp = Model.AppId is int fid ? MockData.App(fid) : null;
+    var filterLang = Model.Lang != null ? MockData.Lang(Model.Lang) : null;
+    var periods = new[] { (1, "Last 24 hours"), (7, "Last 7 days"), (30, "Last 30 days"), (0, "All time") };
+    var allCount = Model.TypeCounts.Values.Sum();
+
+    // Current filters, with the given values overriding them.
+    string FilterUrl(int? appId = null, string? lang = null, int? page = null) =>
+        Url.Action("Index", new
+        {
+            appId = appId ?? Model.AppId,
+            lang = lang ?? Model.Lang,
+            type = Model.Type == "all" ? null : Model.Type,
+            days = Model.Days == 30 ? (int?)null : Model.Days,
+            page,
+        })!;
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Activity</h1>
+        <p>
+            Only records activities of comtor
+            @if (filterApp != null || filterLang != null)
+            {
+                <text> — showing </text>
+                @if (filterApp != null) { <b>@filterApp.Name</b> }
+                @if (filterApp != null && filterLang != null) { <text> · </text> }
+                @if (filterLang != null) { <b>@filterLang.Flag @filterLang.Name</b> }
+            }
+        </p>
+    </div>
+</div>
+
+<form class="lz-card mb-3" method="get" asp-action="Index">
+    <div class="lz-filters">
+        <select class="form-select w-auto" name="appId" data-autosubmit aria-label="Application">
+            <option value="">All applications</option>
+            @foreach (var a in MockData.Apps)
+            {
+                <option value="@a.Id" selected="@(a.Id == Model.AppId)">@a.Name</option>
+            }
+        </select>
+        <select class="form-select w-auto" name="lang" data-autosubmit aria-label="Language">
+            <option value="">🌐 All languages</option>
+            @foreach (var l in MockData.Languages)
+            {
+                <option value="@l.Code" selected="@(l.Code == Model.Lang)">@l.Flag @l.Name</option>
+            }
+        </select>
+        <select class="form-select w-auto" name="days" data-autosubmit aria-label="Period">
+            @foreach (var (d, label) in periods)
+            {
+                <option value="@d" selected="@(d == Model.Days)">@label</option>
+            }
+        </select>
+        @if (Model.HasFilters)
+        {
+            <a class="btn btn-link btn-sm text-muted" asp-action="Index">Clear filters</a>
+        }
+    </div>
+</form>
+
+
+<div class="lz-card">
+    @if (Model.Items.Count == 0)
+    {
+        <div class="lz-empty">
+            <i class="bi bi-clock-history"></i>
+            <h3>No activity found</h3>
+            <p>Try a longer period or remove a filter.</p>
+        </div>
+    }
+    else
+    {
+        @foreach (var day in Model.Items.GroupBy(a => a.When.Date))
+        {
+            <div class="lz-feed-day">
+                <span>@Ui.DayLabel(day.Key)</span>
+                <span class="text-muted fw-normal">@day.Count() @(day.Count() == 1 ? "event" : "events")</span>
+            </div>
+            @foreach (var act in day)
+            {
+                var app = act.AppId is int id ? MockData.App(id) : null;
+                var lang = act.Lang != null ? MockData.Lang(act.Lang) : null;
+                var user = MockData.Users.FirstOrDefault(u => u.Name == act.User);
+                <div class="lz-feed-item">
+                    <span class="lz-activity-icon kind-@act.Kind"><i class="bi bi-@Ui.ActivityIcon(act.Kind)"></i></span>
+                    <div class="flex-grow-1 min-w-0">
+                        <div class="lz-activity-text">
+                            <b>@act.User</b>
+                            @if (user != null) { <span class="lz-pill @Ui.RoleClass(user.Role) lz-pill-xs">@(user.Role == UserRole.QA ? "QA" : user.Role.ToString())</span> }
+                            @act.Text
+                        </div>
+                        <div class="lz-feed-meta">
+                            @if (app != null)
+                            {
+                                <a class="lz-feed-chip" href="@FilterUrl(appId: app.Id)" title="Show activity for @app.Name only">
+                                    <span class="lz-dot" style="background:@app.Color"></span> @app.Name
+                                </a>
+                            }
+                            @if (lang != null)
+                            {
+                                <a class="lz-feed-chip" href="@FilterUrl(lang: lang.Code)" title="Show @lang.Name activity only">@lang.Flag @lang.Name</a>
+                            }
+                            @if (app != null && lang != null && (act.Kind is "translate" or "edit"))
+                            {
+                                <a class="lz-feed-link" asp-controller="Applications" asp-action="Details" asp-route-id="@app.Id" asp-route-lang="@lang.Code">View translations →</a>
+                            }
+                        </div>
+                    </div>
+                    <span class="lz-feed-time" title="@Ui.Exact(act.When)">@act.When.ToString("HH:mm")</span>
+                </div>
+            }
+        }
+
+        <div class="lz-pager">
+            <span>Showing @((Model.Page - 1) * 40 + 1)–@((Model.Page - 1) * 40 + Model.Items.Count) of @Model.Total events</span>
+            @if (Model.PageCount > 1)
+            {
+                <ul class="pagination pagination-sm">
+                    <li class="page-item @(Model.Page == 1 ? "disabled" : "")"><a class="page-link" href="@FilterUrl(page: Model.Page - 1)">‹</a></li>
+                    @for (var p = 1; p <= Model.PageCount; p++)
+                    {
+                        <li class="page-item @(p == Model.Page ? "active" : "")"><a class="page-link" href="@FilterUrl(page: p)">@p</a></li>
+                    }
+                    <li class="page-item @(Model.Page == Model.PageCount ? "disabled" : "")"><a class="page-link" href="@FilterUrl(page: Model.Page + 1)">›</a></li>
+                </ul>
+            }
+        </div>
+    }
+</div>

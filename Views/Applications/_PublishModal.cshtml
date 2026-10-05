@@ -1,0 +1,78 @@
+@model PublishModalModel
+@{
+    var app = Model.Stats.App;
+    var isLive = Model.Environment == "LIVE";
+    var current = isLive ? app.Live : app.Test;
+    var pending = isLive ? Model.Stats.PendingLive : Model.Stats.PendingTest;
+    var parts = current.Version.Split('-')[0].Split('.');
+    var next = parts.Length == 3 && int.TryParse(parts[2], out var patch) ? $"{parts[0]}.{parts[1]}.{patch + 1}" : current.Version;
+    var suggested = isLive ? app.Test.Version : next;
+}
+
+<div class="modal fade" id="publish@(Model.Environment)" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form class="modal-content" data-demo-submit="@app.Name v@(suggested) published to @Model.Environment (demo only)">
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Publish to <span class="lz-env @(isLive ? "live" : "test") align-middle">@Model.Environment</span></h5>
+                    <div class="small text-muted">@app.Name</div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                @if (isLive)
+                {
+                    <div class="lz-callout warn mb-3">
+                        <i class="bi bi-exclamation-triangle"></i>
+                        <div>Translations published to LIVE are delivered to all end users immediately. Make sure QA has verified the TEST build first.</div>
+                    </div>
+                }
+                <div class="row g-2 mb-3">
+                    <div class="col-4"><div class="lz-mini-stat"><div class="v">@pending</div><div class="l">Changed keys</div></div></div>
+                    <div class="col-4"><div class="lz-mini-stat"><div class="v">@Model.Stats.NewKeys</div><div class="l">New keys</div></div></div>
+                    <div class="col-4"><div class="lz-mini-stat"><div class="v" style="color:@(Model.Stats.Untranslated > 0 ? "var(--lz-bad)" : "inherit")">@Model.Stats.Untranslated</div><div class="l">Untranslated</div></div></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Version</label>
+                    <div class="input-group">
+                        <span class="input-group-text font-mono small">v@(current.Version) →</span>
+                        <input class="form-control font-mono" value="@suggested" required/>
+                    </div>
+                    @if (isLive)
+                    {
+                        <div class="form-text">Promotes the current TEST build (v@(app.Test.Version)).</div>
+                    }
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Release note</label>
+                    <textarea class="form-control" rows="2" placeholder="What changed in this release?"></textarea>
+                </div>
+                @if (Model.Stats.Untranslated > 0)
+                {
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="fallback@(Model.Environment)" checked>
+                        <label class="form-check-label" for="fallback@(Model.Environment)">Use English for the @Model.Stats.Untranslated untranslated strings</label>
+                    </div>
+                }
+                @if (isLive)
+                {
+                    <div class="form-check mt-1">
+                        <input class="form-check-input" type="checkbox" id="qaVerified" data-enables="#publishLiveBtn">
+                        <label class="form-check-label" for="qaVerified">QA has verified v@(app.Test.Version) on TEST</label>
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                @if (isLive)
+                {
+                    <button type="submit" class="btn btn-live" id="publishLiveBtn" disabled><i class="bi bi-rocket-takeoff"></i> Publish to LIVE</button>
+                }
+                else
+                {
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-send"></i> Publish to TEST</button>
+                }
+            </div>
+        </form>
+    </div>
+</div>

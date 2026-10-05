@@ -1,0 +1,67 @@
+@model AppInfo
+
+<div class="modal fade" id="downloadModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" data-demo-submit="Preparing download for @Model.Name… (demo only)" data-download-form>
+            <div class="modal-header">
+                <div>
+                    <h5 class="modal-title">Download translations</h5>
+                    <div class="small text-muted">@Model.Name · <span class="font-mono">@Model.Code</span></div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center justify-content-between mb-2">
+                    <label class="form-label mb-0">Languages</label>
+                    <div class="form-check form-switch mb-0">
+                        <input class="form-check-input" type="checkbox" id="dlAll" data-check-all="dl-lang" checked>
+                        <label class="form-check-label small fw-semibold" for="dlAll">All languages</label>
+                    </div>
+                </div>
+                <div class="lz-check-grid mb-1">
+                    @foreach (var code in Model.Languages)
+                    {
+                        var l = MockData.Lang(code);
+                        <label class="lz-check-tile">
+                            <input class="form-check-input" type="checkbox" name="lang" value="@code" data-group="dl-lang" checked/>
+                            <span class="lz-flag">@l.Flag</span> @l.Name
+                        </label>
+                    }
+                </div>
+                <div class="small text-muted mb-4"><span data-count-for="dl-lang">@Model.Languages.Count</span> of @Model.Languages.Count selected</div>
+
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">Format</label>
+                        <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="format" checked>
+                            <span><span class="t d-block">ZIP of JSON files</span><span class="d">One <code>{lang}.json</code> per language</span></span></label>
+                        <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="format">
+                            <span><span class="t d-block">Single JSON</span><span class="d">All languages nested in one file</span></span></label>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Source</label>
+                        <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="env" checked>
+                            <span><span class="t d-block">Latest (working copy)</span><span class="d">Includes unpublished changes</span></span></label>
+                        <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="env">
+                            <span><span class="t d-block">TEST · v@(Model.Test.Version)</span><span class="d">Published @Ui.Relative(Model.Test.PublishedAt)</span></span></label>
+                        <label class="lz-option"><input class="form-check-input mt-1" type="radio" name="env">
+                            <span><span class="t d-block">LIVE · v@(Model.Live.Version)</span><span class="d">Published @Ui.Relative(Model.Live.PublishedAt)</span></span></label>
+                    </div>
+                </div>
+
+                <div class="form-check mt-2">
+                    <input class="form-check-input" type="checkbox" id="dlFallback" checked>
+                    <label class="form-check-label" for="dlFallback">Fill untranslated keys with English (fallback)</label>
+                </div>
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" id="dlNested">
+                    <label class="form-check-label" for="dlNested">Nested keys (<code>{"auth": {"button": {…}}}</code>) instead of flat <code>"auth.button.save"</code></label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" data-requires-group="dl-lang"><i class="bi bi-download"></i> Download</button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,197 @@
+@model UsersViewModel
+@{
+    ViewData["Title"] = "Users & roles";
+    string RoleLabel(UserRole r) => r == UserRole.QA ? "QA" : r.ToString();
+    var permissions = new (string Name, bool Dev, bool Qa, bool Comtor)[]
+    {
+        ("Add / edit keys", true, false, false),
+        ("Translate & edit text", true, false, true),
+        ("Upload JSON", true, false, true),
+        ("Download translations", true, true, true),
+        ("Publish to TEST", true, true, false),
+        ("Publish to LIVE", false, true, false),
+        ("Delete keys", true, false, false),
+    };
+}
+
+<div class="lz-page-header">
+    <div>
+        <h1>Users &amp; roles</h1>
+        <p>@Model.Total members · developers, QA and comtors</p>
+    </div>
+    <button class="btn btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#userModal" data-user-new><i class="bi bi-person-plus"></i> Invite user</button>
+</div>
+
+<div class="lz-card mb-3">
+    <form class="lz-filters" method="get" asp-action="Index">
+        <div class="lz-seg">
+            <a class="@(Model.Role == null ? "active" : "")" asp-action="Index" asp-route-q="@Model.Query">All<span class="count">@Model.Total</span></a>
+            @foreach (var r in Enum.GetValues<UserRole>())
+            {
+                <a class="@(Model.Role != null && Model.Role.Equals(r.ToString(), StringComparison.OrdinalIgnoreCase) ? "active" : "")"
+                   asp-action="Index" asp-route-role="@r.ToString().ToLowerInvariant()" asp-route-q="@Model.Query">@RoleLabel(r)<span class="count">@Model.RoleCounts[r]</span></a>
+            }
+        </div>
+        @if (Model.Role != null) { <input type="hidden" name="role" value="@Model.Role"/> }
+        <div class="lz-input-icon" style="max-width:320px">
+            <i class="bi bi-search"></i>
+            <input class="form-control" type="search" name="q" value="@Model.Query" placeholder="Search name or email…"/>
+        </div>
+    </form>
+
+    @if (Model.Users.Count == 0)
+    {
+        <div class="lz-empty"><i class="bi bi-people"></i><h3>No users found</h3></div>
+    }
+    else
+    {
+        <div class="table-responsive">
+            <table class="lz-table">
+                <thead>
+                <tr>
+                    <th>User</th>
+                    <th>Role</th>
+                    <th>Languages</th>
+                    @* <th>Applications</th> *@
+                    <th>Status</th>
+                    <th>Last active</th>
+                    <th></th>
+                </tr>
+                </thead>
+                <tbody>
+                @foreach (var u in Model.Users)
+                {
+                    var apps = u.AppIds.Select(i => MockData.App(i)!).ToList();
+                    var userJson = System.Text.Json.JsonSerializer.Serialize(new { u.Name, u.Email, Role = u.Role.ToString(), u.Languages, u.AppIds });
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="lz-avatar @Ui.RoleClass(u.Role)">@Ui.Initials(u.Name)</span>
+                                <div class="min-w-0">
+                                    <div class="fw-semibold">@u.Name</div>
+                                    <div class="small text-muted">@u.Email</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td><span class="lz-pill @Ui.RoleClass(u.Role)">@RoleLabel(u.Role)</span></td>
+                        <td>
+                            @if (u.Languages.Count == 0)
+                            {
+                                <span class="text-muted small">All (read)</span>
+                            }
+                            else
+                            {
+                                foreach (var code in u.Languages)
+                                {
+                                    var l = MockData.Lang(code);
+                                    <span class="lz-pill gray me-1" title="@l.Name">@l.Flag @code</span>
+                                }
+                            }
+                        </td>
+                        @* <td>
+                            <div class="d-flex align-items-center" title="@string.Join(", ", apps.Select(a => a.Name))">
+                                @foreach (var a in apps.Take(4))
+                                {
+                                    <span class="lz-app-icon sm" style="background:@a.Color;margin-right:-5px;width:24px;height:24px;font-size:.7rem;border:2px solid #fff"><i class="bi bi-@a.Icon"></i></span>
+                                }
+                                @if (apps.Count > 4) { <span class="small text-muted ms-2">+@(apps.Count - 4)</span> }
+                            </div>
+                        </td> *@
+                        <td>
+                            @switch (u.Status)
+                            {
+                                case UserStatus.Active: <span class="lz-pill good"><i class="bi bi-circle-fill" style="font-size:.45rem"></i> Active</span> break;
+                                case UserStatus.Invited: <span class="lz-pill warn"><i class="bi bi-envelope"></i> Invited</span> break;
+                                default: <span class="lz-pill gray"><i class="bi bi-slash-circle"></i> Disabled</span> break;
+                            }
+                        </td>
+                        <td class="text-nowrap" title="@Ui.Exact(u.LastActive)">@Ui.Relative(u.LastActive)</td>
+                        <td class="text-end text-nowrap">
+                            <button class="btn btn-sm btn-light" type="button" data-bs-toggle="modal" data-bs-target="#userModal" data-user="@userJson" title="Edit"><i class="bi bi-pencil"></i></button>
+                            <div class="dropdown d-inline-block">
+                                <button class="btn btn-sm btn-light" data-bs-toggle="dropdown" type="button" aria-label="More"><i class="bi bi-three-dots"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end">
+                                    @if (u.Status == UserStatus.Invited)
+                                    {
+                                        <li><button class="dropdown-item" type="button" data-toast="Invitation re-sent to @u.Email (demo only)"><i class="bi bi-envelope me-2"></i>Resend invite</button></li>
+                                    }
+                                    @* <li><button class="dropdown-item" type="button" data-toast="Password reset link sent (demo only)"><i class="bi bi-key me-2"></i>Reset password</button></li> *@
+                                    <li><button class="dropdown-item" type="button" data-toast="@u.Name @(u.Status == UserStatus.Disabled ? "enabled" : "disabled") (demo only)">
+                                        <i class="bi bi-@(u.Status == UserStatus.Disabled ? "check-circle" : "slash-circle") me-2"></i>@(u.Status == UserStatus.Disabled ? "Enable" : "Disable")</button></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><button class="dropdown-item text-danger" type="button" data-toast="@u.Name removed (demo only)"><i class="bi bi-trash me-2"></i>Remove</button></li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
+<div class="modal fade" id="userModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <form class="modal-content" data-demo-submit="User saved (demo only)">
+            <div class="modal-header">
+                <h5 class="modal-title" data-user-title>Invite user</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="uName">Full name</label>
+                        <input class="form-control" id="uName" required/>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="uEmail">Email</label>
+                        <input class="form-control" id="uEmail" type="email" required/>
+                    </div>
+                    <div class="col-12">
+                        <label class="form-label">Role</label>
+                        <div class="row g-2">
+                            @foreach (var (role, desc) in new[] { (UserRole.Developer, "Adds keys, uploads files, publishes to TEST"), (UserRole.QA, "Verifies builds, publishes to LIVE"), (UserRole.Comtor, "Translates assigned languages") })
+                            {
+                                <div class="col-md-4">
+                                    <label class="lz-option h-100 mb-0">
+                                        <input class="form-check-input mt-1" type="radio" name="role" value="@role" checked="@(role == UserRole.Developer)"/>
+                                        <span><span class="t d-block">@RoleLabel(role)</span><span class="d">@desc</span></span>
+                                    </label>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-12" data-comtor-only>
+                        <label class="form-label">Languages to translate</label>
+                        <div class="lz-check-grid">
+                            @foreach (var l in MockData.Languages.Where(l => l.Code != MockData.SourceLanguage))
+                            {
+                                <label class="lz-check-tile"><input class="form-check-input" type="checkbox" name="langs" value="@l.Code"/><span class="lz-flag">@l.Flag</span> @l.Name</label>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-12">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <label class="form-label mb-0">Applications</label>
+                            <div class="form-check form-switch mb-0">
+                                <input class="form-check-input" type="checkbox" id="uAllApps" data-check-all="u-apps">
+                                <label class="form-check-label small fw-semibold" for="uAllApps">All applications</label>
+                            </div>
+                        </div>
+                        <div class="lz-check-grid">
+                            @foreach (var a in MockData.Apps)
+                            {
+                                <label class="lz-check-tile"><input class="form-check-input" type="checkbox" name="apps" value="@a.Id" data-group="u-apps"/><span class="lz-dot" style="background:@a.Color"></span> @a.Name</label>
+                            }
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary" data-user-submit>Send invite</button>
+            </div>
+        </form>
+    </div>
+</div>

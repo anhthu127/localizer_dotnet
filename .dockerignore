@@ -1,0 +1,13 @@
+bin/
+obj/
+.git/
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+.DS_Store
+Dockerfile
+.dockerignore
+.env
+.env.*
